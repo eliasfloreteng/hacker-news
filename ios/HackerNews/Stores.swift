@@ -15,6 +15,7 @@ enum DefaultsKey {
     static let notificationsEnabled = "notificationsEnabled"
     static let pointsThreshold = "pointsThreshold"
     static let collapsed = "collapsedCommentIDs"
+    static let scrollTop = "commentScrollTopByStory"
 }
 
 /// Tracks which stories the user has opened in the browser.
@@ -78,6 +79,43 @@ final class CollapsedStore {
         // Keep the persisted set from growing without bound.
         let trimmed = collapsed.count > 2000 ? Set(collapsed.suffix(2000)) : collapsed
         UserDefaults.standard.set(Array(trimmed), forKey: DefaultsKey.collapsed)
+    }
+}
+
+/// Remembers where the user was scrolled in each story's comments — stored as
+/// the ID of the comment row at the top of the viewport, keyed by story ID — so
+/// reopening a thread lands back in the same place.
+@Observable
+final class CommentScrollStore {
+    static let shared = CommentScrollStore()
+
+    private var topByStory: [Int: Int]
+
+    private init() {
+        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.scrollTop) as? [String: Int] ?? [:]
+        topByStory = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in
+            Int(key).map { ($0, value) }
+        })
+    }
+
+    func top(for storyID: Int) -> Int? { topByStory[storyID] }
+
+    func setTop(_ commentID: Int?, for storyID: Int) {
+        if let commentID {
+            topByStory[storyID] = commentID
+        } else {
+            topByStory.removeValue(forKey: storyID)
+        }
+        persist()
+    }
+
+    private func persist() {
+        // Keep the persisted map from growing without bound.
+        let trimmed = topByStory.count > 500
+            ? Dictionary(uniqueKeysWithValues: topByStory.suffix(500).map { ($0.key, $0.value) })
+            : topByStory
+        let encoded = Dictionary(uniqueKeysWithValues: trimmed.map { (String($0.key), $0.value) })
+        UserDefaults.standard.set(encoded, forKey: DefaultsKey.scrollTop)
     }
 }
 

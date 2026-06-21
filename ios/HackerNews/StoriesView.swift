@@ -52,6 +52,8 @@ struct StoriesView: View {
                 StoryRow(story: story, rank: model.page * StoriesViewModel.pageSize + index + 1)
                     .listRowSeparator(.visible)
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    .onAppear { CommentPrefetcher.shared.prefetch(story) }
+                    .onDisappear { CommentPrefetcher.shared.cancel(story) }
             }
 
             PaginationControls(model: model)

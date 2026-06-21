@@ -10,6 +10,7 @@ import SwiftUI
 
 struct CommentsView: View {
     @State private var model: CommentsViewModel
+    @State private var scrolledID: Int?
     @Environment(\.openURL) private var openURL
     @Environment(VisitedStore.self) private var visited
 
@@ -40,11 +41,19 @@ struct CommentsView: View {
             }
         }
         .listStyle(.plain)
+        .scrollPosition(id: $scrolledID, anchor: .top)
         .navigationTitle("Comments")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.refresh() }
         .onAppear { visited.markVisited(model.story.id) }
-        .task { await model.load() }
+        .onDisappear { CommentScrollStore.shared.setTop(scrolledID, for: model.story.id) }
+        .task {
+            await model.load()
+            // Restore the previous reading position once the thread is on screen.
+            if let saved = CommentScrollStore.shared.top(for: model.story.id) {
+                scrolledID = saved
+            }
+        }
     }
 
     private var storyHeader: some View {
