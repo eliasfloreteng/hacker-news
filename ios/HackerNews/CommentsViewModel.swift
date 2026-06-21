@@ -16,8 +16,14 @@ final class CommentNode: Identifiable {
     let depth: Int
 
     /// When true the node's descendants are hidden — but the node itself stays
-    /// visible (per the app's collapse behaviour).
-    var collapsed = false
+    /// visible (per the app's collapse behaviour). Persisted so the thread keeps
+    /// its collapsed shape across visits.
+    var collapsed: Bool {
+        didSet {
+            guard collapsed != oldValue else { return }
+            CollapsedStore.shared.setCollapsed(collapsed, for: item.id)
+        }
+    }
     var children: [CommentNode] = []
     var hasLoadedChildren = false
     private var isLoading = false
@@ -29,6 +35,7 @@ final class CommentNode: Identifiable {
     init(item: HNItem, depth: Int) {
         self.item = item
         self.depth = depth
+        self.collapsed = CollapsedStore.shared.isCollapsed(item.id)
     }
 
     func loadChildrenIfNeeded() async {

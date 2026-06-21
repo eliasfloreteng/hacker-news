@@ -14,6 +14,7 @@ enum DefaultsKey {
     static let notified = "notifiedStoryIDs"
     static let notificationsEnabled = "notificationsEnabled"
     static let pointsThreshold = "pointsThreshold"
+    static let collapsed = "collapsedCommentIDs"
 }
 
 /// Tracks which stories the user has opened in the browser.
@@ -43,6 +44,40 @@ final class VisitedStore {
     /// Read the visited set directly from defaults (for use off the main actor).
     static func visitedIDs() -> Set<Int> {
         Set(UserDefaults.standard.array(forKey: DefaultsKey.visited) as? [Int] ?? [])
+    }
+}
+
+/// Remembers which comments the user has collapsed so the thread looks the same
+/// when they leave and come back. HN comment IDs are globally unique, so a flat
+/// set keyed by comment ID is enough — no need to scope by story.
+@Observable
+final class CollapsedStore {
+    static let shared = CollapsedStore()
+
+    private var collapsed: Set<Int>
+
+    private init() {
+        let raw = UserDefaults.standard.array(forKey: DefaultsKey.collapsed) as? [Int] ?? []
+        collapsed = Set(raw)
+    }
+
+    func isCollapsed(_ id: Int) -> Bool { collapsed.contains(id) }
+
+    func setCollapsed(_ isCollapsed: Bool, for id: Int) {
+        if isCollapsed {
+            guard !collapsed.contains(id) else { return }
+            collapsed.insert(id)
+        } else {
+            guard collapsed.contains(id) else { return }
+            collapsed.remove(id)
+        }
+        persist()
+    }
+
+    private func persist() {
+        // Keep the persisted set from growing without bound.
+        let trimmed = collapsed.count > 2000 ? Set(collapsed.suffix(2000)) : collapsed
+        UserDefaults.standard.set(Array(trimmed), forKey: DefaultsKey.collapsed)
     }
 }
 
