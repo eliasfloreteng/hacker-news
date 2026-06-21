@@ -84,9 +84,9 @@ private struct CommentRow: View {
 
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                node.collapsed.toggle()
-            }
+            // Collapsing only makes sense when there are children to hide.
+            guard node.hasChildren else { return }
+            node.collapsed.toggle()
         } label: {
             HStack(alignment: .top, spacing: 8) {
                 indentBar
@@ -99,6 +99,8 @@ private struct CommentRow: View {
                     }
                 }
             }
+            // Make the entire row rect tappable, including the trailing spacer.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .listRowSeparator(.hidden)
