@@ -1,0 +1,11 @@
+# Claude local instructions (machine-specific)
+CLAUDE.local.md
+
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
