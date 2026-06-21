@@ -75,13 +75,26 @@ final class CommentsViewModel {
 
     func load() async {
         guard roots.isEmpty else { return }
+        await fetchRoots(refresh: false)
+    }
+
+    /// Pull-to-refresh: drop the existing tree and re-fetch from live data,
+    /// bypassing the cache.
+    func refresh() async {
+        await fetchRoots(refresh: true)
+    }
+
+    private func fetchRoots(refresh: Bool) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
-        guard let kids = story.kids, !kids.isEmpty else { return }
+        guard let kids = story.kids, !kids.isEmpty else {
+            roots = []
+            return
+        }
         do {
-            let items = try await HNClient.shared.items(kids)
+            let items = try await HNClient.shared.items(kids, refresh: refresh)
             roots = items
                 .filter { !$0.isDeadOrDeleted }
                 .map { CommentNode(item: $0, depth: 0) }
