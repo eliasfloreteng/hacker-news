@@ -64,17 +64,33 @@ struct HNClient {
 
     /// Fetch many items concurrently while preserving the input order. Pass
     /// `refresh: true` to bypass the cache and fetch live copies.
+    ///
+    /// Individual fetches are allowed to fail without aborting the batch: a
+    /// single transient network error or a deleted item (which the API returns
+    /// as `null` and fails to decode) would otherwise take down the whole page.
+    /// Failed items are simply dropped. If every fetch fails for a non-empty
+    /// request, the error is rethrown so callers can show a retry prompt.
     func items(_ ids: [Int], refresh: Bool = false) async throws -> [HNItem] {
         if refresh {
             await ItemCache.shared.invalidate(ids)
         }
-        return try await withThrowingTaskGroup(of: (Int, HNItem).self) { group in
+        return try await withThrowingTaskGroup(of: (Int, Result<HNItem, Error>).self) { group in
             for (index, id) in ids.enumerated() {
-                group.addTask { (index, try await item(id)) }
+                group.addTask {
+                    do { return (index, .success(try await item(id))) }
+                    catch { return (index, .failure(error)) }
+                }
             }
             var results = [(Int, HNItem)]()
-            for try await pair in group {
-                results.append(pair)
+            var lastError: Error?
+            for try await (index, result) in group {
+                switch result {
+                case .success(let item): results.append((index, item))
+                case .failure(let error): lastError = error
+                }
+            }
+            if results.isEmpty, let lastError, !ids.isEmpty {
+                throw lastError
             }
             return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
