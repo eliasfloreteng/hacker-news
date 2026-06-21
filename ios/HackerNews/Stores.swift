@@ -38,6 +38,12 @@ final class VisitedStore {
         persist()
     }
 
+    func unmarkVisited(_ id: Int) {
+        guard visited.contains(id) else { return }
+        visited.remove(id)
+        persist()
+    }
+
     private func persist() {
         UserDefaults.standard.set(Array(visited), forKey: DefaultsKey.visited)
     }

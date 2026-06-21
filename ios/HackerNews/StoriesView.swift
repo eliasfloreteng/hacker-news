@@ -152,6 +152,21 @@ struct StoryRow: View {
             }
         }
         .padding(.vertical, 6)
+        .contextMenu {
+            if isVisited {
+                Button {
+                    visited.unmarkVisited(story.id)
+                } label: {
+                    Label("Mark as Not Read", systemImage: "circle")
+                }
+            } else {
+                Button {
+                    visited.markVisited(story.id)
+                } label: {
+                    Label("Mark as Read", systemImage: "checkmark.circle")
+                }
+            }
+        }
     }
 
     private var metadata: some View {

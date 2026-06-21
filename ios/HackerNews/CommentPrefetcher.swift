@@ -3,9 +3,10 @@
 //  HackerNews
 //
 //  Warms the item cache with a story's top-level comments while its row is on
-//  screen, so opening the discussion feels instant. Prefetches are debounced so
-//  rows the user flicks past don't fire, capped to roughly the first screenful
-//  of comments to stay light on the network, and deduped against the cache TTL.
+//  screen, so opening the discussion feels instant. We fetch every root comment
+//  because the thread view waits for the whole batch before it renders — warming
+//  only a prefix would still leave the spinner up. Prefetches are debounced so
+//  rows the user flicks past don't fire, and deduped against the cache TTL.
 //
 
 import Foundation
@@ -13,10 +14,6 @@ import Foundation
 @MainActor
 final class CommentPrefetcher {
     static let shared = CommentPrefetcher()
-
-    /// Only the first comments are worth warming — they're what the reader sees
-    /// before scrolling. The rest fill in on demand when the thread opens.
-    private static let prefetchLimit = 10
 
     /// Wait out quick scrolling before spending a request on a row.
     private static let debounce: Duration = .milliseconds(300)
@@ -39,11 +36,10 @@ final class CommentPrefetcher {
             return
         }
 
-        let ids = Array(kids.prefix(Self.prefetchLimit))
         tasks[id] = Task { [weak self] in
             try? await Task.sleep(for: Self.debounce)
             guard !Task.isCancelled else { return }
-            _ = try? await HNClient.shared.items(ids)
+            _ = try? await HNClient.shared.items(kids)
             guard let self, !Task.isCancelled else { return }
             self.lastPrefetched[id] = Date()
             self.tasks[id] = nil
