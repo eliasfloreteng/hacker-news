@@ -112,58 +112,81 @@ struct StoryRow: View {
     private var isVisited: Bool { visited.isVisited(story.id) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Text("\(rank)")
-                .font(.callout.monospacedDigit())
+                .font(.subheadline.monospacedDigit())
                 .foregroundStyle(.tertiary)
-                .frame(minWidth: 24, alignment: .trailing)
+                .frame(minWidth: 22, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 4) {
-                // Title — opens the link in the default browser.
+            VStack(alignment: .leading, spacing: 6) {
+                // Title — opens the link in the default browser. Takes the
+                // full row width so it wraps cleanly across lines.
                 Button {
                     visited.markVisited(story.id)
                     openURL(story.destinationURL)
                 } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(story.title ?? "(untitled)")
-                            .font(.headline)
-                            .multilineTextAlignment(.leading)
-                            .foregroundStyle(isVisited ? .secondary : .primary)
-                        if let host = story.displayHost {
-                            Text(host)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
+                    Text(story.title ?? "(untitled)")
+                        .font(.headline)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(isVisited ? .secondary : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
+
+                // Source host on its own line so it never crowds the title.
+                if let host = story.displayHost {
+                    Label(host, systemImage: "globe")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
 
                 metadata
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private var metadata: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Label("\(story.score ?? 0)", systemImage: "arrow.up")
                 .foregroundStyle(isVisited ? .tertiary : .secondary)
 
             if let by = story.by {
-                Text(by)
+                Label(by, systemImage: "person")
+                    .lineLimit(1)
             }
+
             Text(RelativeTime.string(from: story.date))
 
-            Spacer()
+            Spacer(minLength: 8)
 
             // Comments — opens the in-app discussion view.
             NavigationLink(value: story) {
-                Label("\(story.descendants ?? 0)", systemImage: "bubble.left")
+                Label("\(story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier("commentsLink")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+        .labelStyle(.compactMetadata)
     }
+}
+
+/// Tightens icon-and-text labels in the metadata row: small gap, baseline-ish
+/// alignment, so score / author / comments read as compact units.
+private struct CompactMetadataLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+                .imageScale(.small)
+            configuration.title
+        }
+    }
+}
+
+private extension LabelStyle where Self == CompactMetadataLabelStyle {
+    static var compactMetadata: CompactMetadataLabelStyle { .init() }
 }
