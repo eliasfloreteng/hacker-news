@@ -42,6 +42,7 @@ struct CommentsView: View {
         .listStyle(.plain)
         .navigationTitle("Comments")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { visited.markVisited(model.story.id) }
         .task { await model.load() }
     }
 

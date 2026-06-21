@@ -51,6 +51,7 @@ struct StoriesView: View {
             ForEach(Array(model.stories.enumerated()), id: \.element.id) { index, story in
                 StoryRow(story: story, rank: model.page * StoriesViewModel.pageSize + index + 1)
                     .listRowSeparator(.visible)
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             }
 
             PaginationControls(model: model)
@@ -136,10 +137,13 @@ struct StoryRow: View {
 
                 // Source host on its own line so it never crowds the title.
                 if let host = story.displayHost {
-                    Label(host, systemImage: "globe")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Favicon(host: host)
+                        Text(host)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
                 }
 
                 metadata
@@ -172,6 +176,30 @@ struct StoryRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .labelStyle(.compactMetadata)
+    }
+}
+
+/// Loads a site's favicon for the source-host line, falling back to a globe
+/// glyph while loading or when no icon is available.
+private struct Favicon: View {
+    let host: String
+
+    private var url: URL? {
+        URL(string: "https://www.google.com/s2/favicons?domain=\(host)&sz=64")
+    }
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+            } else {
+                Image(systemName: "globe")
+            }
+        }
+        .frame(width: 13, height: 13)
     }
 }
 
