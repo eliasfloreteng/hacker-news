@@ -15,6 +15,7 @@ struct HackerNewsApp: App {
 
     init() {
         NotificationManager.registerBackgroundTask()
+        NotificationManager.registerNotificationDelegate()
     }
 
     var body: some Scene {

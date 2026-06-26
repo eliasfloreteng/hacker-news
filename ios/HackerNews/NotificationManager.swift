@@ -7,8 +7,43 @@
 //
 
 import Foundation
+import Observation
 import UserNotifications
 import BackgroundTasks
+
+/// Carries the story a tapped notification should open. `StoriesView` observes
+/// `pendingStoryID`, pushes that story's comments, then clears it.
+@MainActor
+@Observable
+final class NotificationRouter {
+    static let shared = NotificationRouter()
+    private init() {}
+
+    var pendingStoryID: Int?
+}
+
+/// Receives notification taps and routes them to the comments deep link. Also
+/// lets notifications surface while the app is foregrounded.
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let storyID = response.notification.request.content.userInfo["storyID"] as? Int else { return }
+        await MainActor.run {
+            NotificationRouter.shared.pendingStoryID = storyID
+        }
+    }
+}
 
 enum NotificationManager {
     /// Must match the identifier listed under BGTaskSchedulerPermittedIdentifiers
@@ -33,6 +68,12 @@ enum NotificationManager {
             guard let task = task as? BGAppRefreshTask else { return }
             handle(task)
         }
+    }
+
+    /// Wires up tap handling so notifications deep link into the comments.
+    /// Must run early in launch to catch a notification that started the app.
+    static func registerNotificationDelegate() {
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
 
     static func scheduleRefresh() {

@@ -10,9 +10,11 @@ import SwiftUI
 struct StoriesView: View {
     @State private var model = StoriesViewModel()
     @State private var showingSettings = false
+    @State private var path: [HNItem] = []
+    @State private var router = NotificationRouter.shared
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if model.isLoading && model.stories.isEmpty {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,7 +45,28 @@ struct StoriesView: View {
                 CommentsView(story: story)
             }
         }
-        .task { await model.loadInitial() }
+        .task {
+            await model.loadInitial()
+            // Handle a notification that launched the app cold.
+            await openPendingStory()
+        }
+        .onChange(of: router.pendingStoryID) { _, id in
+            guard id != nil else { return }
+            Task { await openPendingStory() }
+        }
+    }
+
+    /// Pushes the comments for a story tapped in a notification, fetching the
+    /// item if it isn't already on the current page.
+    private func openPendingStory() async {
+        guard let id = router.pendingStoryID else { return }
+        router.pendingStoryID = nil
+
+        if let story = model.stories.first(where: { $0.id == id }) {
+            path = [story]
+        } else if let story = try? await HNClient.shared.item(id) {
+            path = [story]
+        }
     }
 
     private var storyList: some View {
