@@ -97,7 +97,7 @@ struct CommentsView: View {
             .buttonStyle(.plain)
 
             if let text = model.story.text, !text.isEmpty {
-                Text(HTMLText.plain(from: text))
+                Text(HTMLText.attributed(from: text))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -131,8 +131,9 @@ private struct CommentRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     header
                     if let text = node.item.text {
-                        Text(HTMLText.plain(from: text))
+                        Text(HTMLText.attributed(from: text))
                             .font(.subheadline)
+                            .tint(.orange)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
