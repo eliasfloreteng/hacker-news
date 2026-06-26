@@ -121,28 +121,30 @@ private struct CommentRow: View {
     private let maxIndentLevel = 8
 
     var body: some View {
-        Button {
+        HStack(alignment: .top, spacing: 8) {
+            indentBar
+            VStack(alignment: .leading, spacing: 4) {
+                header
+                if let text = node.item.text {
+                    // Links in the attributed text handle their own taps and
+                    // take priority over the row's collapse gesture below.
+                    Text(HTMLText.attributed(from: text))
+                        .font(.subheadline)
+                        .tint(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        // Make the entire row rect tappable, including the trailing spacer.
+        .contentShape(Rectangle())
+        .onTapGesture {
             // Collapsing only makes sense when there are children to hide.
             guard node.hasChildren else { return }
             node.collapsed.toggle()
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                indentBar
-                VStack(alignment: .leading, spacing: 4) {
-                    header
-                    if let text = node.item.text {
-                        Text(HTMLText.attributed(from: text))
-                            .font(.subheadline)
-                            .tint(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-            // Make the entire row rect tappable, including the trailing spacer.
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .listRowSeparator(.hidden)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("comment")
         .padding(.leading, CGFloat(min(node.depth, maxIndentLevel)) * indentPerLevel)
     }
