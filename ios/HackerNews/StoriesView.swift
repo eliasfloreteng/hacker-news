@@ -83,7 +83,7 @@ struct StoriesView: View {
                 .listRowSeparator(.hidden)
         }
         .listStyle(.plain)
-        .refreshable { await model.reload() }
+        .refreshable { await model.reload(refresh: true) }
     }
 }
 

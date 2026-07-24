@@ -36,11 +36,16 @@ final class StoriesViewModel {
     }
 
     /// Re-fetch the ID list from scratch and reload the current page.
-    func reload() async {
+    ///
+    /// Pull-to-refresh passes `refresh: true`: it bypasses the item cache (a
+    /// pull within the TTL would otherwise return the very scores already on
+    /// screen) and keeps the existing rows in place while loading, so the list
+    /// — and with it the refresh control driving the gesture — isn't torn down.
+    func reload(refresh: Bool = false) async {
         do {
             allIDs = try await HNClient.shared.topStoryIDs()
             if page >= pageCount { page = 0 }
-            await loadCurrentPage()
+            await loadCurrentPage(refresh: refresh)
         } catch {
             errorMessage = "Couldn't load stories. Pull to retry."
         }
@@ -58,10 +63,12 @@ final class StoriesViewModel {
         await loadCurrentPage()
     }
 
-    private func loadCurrentPage() async {
+    private func loadCurrentPage(refresh: Bool = false) async {
         isLoading = true
         errorMessage = nil
-        stories = []
+        // Page navigation blanks the list so the old page doesn't linger under
+        // a spinner; a refresh replaces the rows in place instead.
+        if !refresh { stories = [] }
         defer { isLoading = false }
 
         let start = page * Self.pageSize
@@ -69,7 +76,7 @@ final class StoriesViewModel {
         let pageIDs = Array(allIDs[start..<min(start + Self.pageSize, allIDs.count)])
 
         do {
-            stories = try await HNClient.shared.items(pageIDs)
+            stories = try await HNClient.shared.items(pageIDs, refresh: refresh)
         } catch {
             errorMessage = "Couldn't load this page. Pull to retry."
         }
