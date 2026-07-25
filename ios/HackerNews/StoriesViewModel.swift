@@ -35,15 +35,16 @@ final class StoriesViewModel {
         await reload()
     }
 
-    /// Re-fetch the ID list from scratch and reload the current page.
+    /// Re-fetch the ID list and reload the current page.
     ///
-    /// Pull-to-refresh passes `refresh: true`: it bypasses the item cache (a
-    /// pull within the TTL would otherwise return the very scores already on
-    /// screen) and keeps the existing rows in place while loading, so the list
-    /// — and with it the refresh control driving the gesture — isn't torn down.
+    /// Pull-to-refresh passes `refresh: true`: it bypasses the cache for both
+    /// the ordering and the rows (a pull served from cache would otherwise
+    /// return the very scores already on screen) and keeps the existing rows in
+    /// place while loading, so the list — and with it the refresh control
+    /// driving the gesture — isn't torn down.
     func reload(refresh: Bool = false) async {
         do {
-            allIDs = try await HNClient.shared.topStoryIDs()
+            allIDs = try await HNClient.shared.topStoryIDs(refresh: refresh)
             if page >= pageCount { page = 0 }
             await loadCurrentPage(refresh: refresh)
         } catch {

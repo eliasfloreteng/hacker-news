@@ -18,9 +18,9 @@ final class CommentPrefetcher {
     /// Wait out quick scrolling before spending a request on a row.
     private static let debounce: Duration = .milliseconds(300)
 
-    /// Skip re-prefetching a story whose comments are still cache-fresh. Kept a
-    /// touch under `ItemCache.ttl` so an entry doesn't expire moments after.
-    private static let revisitInterval: TimeInterval = ItemCache.ttl - 10
+    /// Skip re-prefetching a story whose comments are still cache-fresh — the
+    /// walk would find everything already cached and spend a slot doing nothing.
+    private static let revisitInterval: TimeInterval = ItemCache.commentTTL
 
     /// How many threads to warm at once. A screenful of rows would otherwise
     /// each start a walk of a whole thread and crowd out the story the user

@@ -45,7 +45,9 @@ final class CommentNode: Identifiable {
 @MainActor
 @Observable
 final class CommentsViewModel {
-    let story: HNItem
+    /// Replaced on refresh, so the header's score and the thread's roots both
+    /// come from the same up-to-date copy.
+    private(set) var story: HNItem
     private(set) var roots: [CommentNode] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -86,6 +88,13 @@ final class CommentsViewModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+
+        // A pull re-fetches the story first. Its `kids` is what defines the
+        // thread's roots, so refreshing only the comments we already know about
+        // would never turn up a new top-level one.
+        if refresh, let fresh = try? await HNClient.shared.item(story.id, refresh: true) {
+            story = fresh
+        }
 
         guard let kids = story.kids, !kids.isEmpty else {
             roots = []

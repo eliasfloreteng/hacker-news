@@ -25,10 +25,14 @@ struct HackerNewsApp: App {
                 .environment(settings)
         }
         .onChange(of: scenePhase) { _, phase in
+            guard phase == .background else { return }
             // Queue the next background refresh whenever we go to the background.
-            if phase == .background, settings.notificationsEnabled {
+            if settings.notificationsEnabled {
                 NotificationManager.scheduleRefresh()
             }
+            // Get the cache on disk before iOS suspends us and the pending
+            // write never happens.
+            Task { await ItemCache.shared.flush() }
         }
     }
 }

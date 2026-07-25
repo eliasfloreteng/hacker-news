@@ -107,8 +107,10 @@ enum NotificationManager {
         let threshold = defaults.integer(forKey: DefaultsKey.pointsThreshold)
 
         do {
-            let ids = Array(try await HNClient.shared.topStoryIDs().prefix(scanCount))
-            let stories = try await HNClient.shared.items(ids)
+            // Always live: the whole job is spotting a score crossing the
+            // threshold, which a cached copy from the last run cannot show.
+            let ids = Array(try await HNClient.shared.topStoryIDs(refresh: true).prefix(scanCount))
+            let stories = try await HNClient.shared.items(ids, refresh: true)
 
             let visited = VisitedStore.visitedIDs()
             let alreadyNotified = NotifiedStore.notifiedIDs()
