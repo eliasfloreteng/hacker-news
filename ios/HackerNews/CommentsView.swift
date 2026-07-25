@@ -19,7 +19,9 @@ struct CommentsView: View {
     @Environment(VisitedStore.self) private var visited
 
     init(story: HNItem) {
-        _model = State(initialValue: CommentsViewModel(story: story))
+        // Reuses the model from a previous visit when there is one, so stepping
+        // back into a thread shows it already built instead of reassembling it.
+        _model = State(initialValue: CommentsViewModelStore.shared.model(for: story))
     }
 
     var body: some View {

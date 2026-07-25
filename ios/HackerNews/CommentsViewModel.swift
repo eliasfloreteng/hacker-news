@@ -42,6 +42,48 @@ final class CommentNode: Identifiable {
     }
 }
 
+/// Keeps recently opened threads alive across navigation.
+///
+/// A pushed `CommentsView` is a fresh view every time, so without this each
+/// visit rebuilds its view model from nothing: a cache lookup per comment and a
+/// whole new node tree, with the spinner up throughout. The items are cached, so
+/// none of it hits the network — it still reads as a load on a big thread, and
+/// it discards the tree the user was looking at moments ago.
+@MainActor
+final class CommentsViewModelStore {
+    static let shared = CommentsViewModelStore()
+
+    /// How many threads to hold. Each keeps its entire node tree alive, so this
+    /// trades memory for the stepping-between-discussions case it exists to
+    /// serve; beyond a handful the memory stops being worth it.
+    private let limit: Int
+
+    private var models: [Int: CommentsViewModel] = [:]
+    /// Story IDs, least recently used first.
+    private var usage: [Int] = []
+
+    init(limit: Int = 5) {
+        self.limit = limit
+    }
+
+    /// The view model for a story, reusing the one from a previous visit when
+    /// it's still held. The retained model keeps its own copy of the story, so
+    /// the header shows what it showed last time until a pull refreshes it.
+    func model(for story: HNItem) -> CommentsViewModel {
+        usage.removeAll { $0 == story.id }
+        usage.append(story.id)
+
+        if let existing = models[story.id] { return existing }
+
+        let model = CommentsViewModel(story: story)
+        models[story.id] = model
+        while usage.count > limit {
+            models.removeValue(forKey: usage.removeFirst())
+        }
+        return model
+    }
+}
+
 @MainActor
 @Observable
 final class CommentsViewModel {
