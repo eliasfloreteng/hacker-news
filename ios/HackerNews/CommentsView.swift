@@ -43,7 +43,6 @@ struct CommentsView: View {
                     ForEach(model.visibleNodes) { node in
                         CommentRow(node: node)
                             .trackTopOffset(id: node.id)
-                            .task { await node.loadChildrenIfNeeded() }
                     }
                 }
             }
@@ -63,13 +62,16 @@ struct CommentsView: View {
             }
             .task {
                 await model.load()
-                // Restore the previous reading position once the rows are laid out.
+                // Restore the previous reading position once the rows are laid
+                // out. The whole thread is loaded by now, so any saved comment
+                // still in it has a row to scroll to.
                 guard let saved = CommentScrollStore.shared.top(for: model.story.id),
-                      saved != model.story.id else { return }
+                      saved != model.story.id,
+                      let target = model.restorationTarget(for: saved) else { return }
                 try? await Task.sleep(for: .milliseconds(50))
                 var tx = Transaction()
                 tx.disablesAnimations = true
-                withTransaction(tx) { proxy.scrollTo(saved, anchor: .top) }
+                withTransaction(tx) { proxy.scrollTo(target, anchor: .top) }
             }
         }
     }
