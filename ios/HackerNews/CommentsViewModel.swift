@@ -2,10 +2,10 @@
 //  CommentsViewModel.swift
 //  HackerNews
 //
-//  Builds the comment tree for a story. The whole thread is fetched before the
-//  first render: rows never appear underneath the user mid-scroll, and a saved
-//  scroll position or collapsed comment always has a row to attach to, however
-//  deep in the thread it sits.
+//  Builds the comment tree for a story. The whole thread arrives in one request
+//  (see `HNClient.commentThread`) and is built before anything renders, so rows
+//  never appear underneath the user mid-scroll. It's shown a page of top-level
+//  comments at a time, with "Load more" revealing the next.
 //
 
 import Foundation
@@ -87,15 +87,33 @@ final class CommentsViewModelStore {
 @MainActor
 @Observable
 final class CommentsViewModel {
+    /// Top-level comments shown per page. Each comes with its whole reply tree,
+    /// as on the HN site, so this is a few screens of reading.
+    static let pageSize = 10
+
     /// Replaced on refresh, so the header's score and the thread's roots both
     /// come from the same up-to-date copy.
     private(set) var story: HNItem
-    private(set) var roots: [CommentNode] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// Every top-level comment in the thread, built up front. The thread
+    /// arrives in a single request, so paging is only about how much is shown.
+    private var allRoots: [CommentNode] = []
+    private var shownRootCount = 0
+
     init(story: HNItem) {
         self.story = story
+    }
+
+    /// The top-level comments showing so far.
+    var roots: ArraySlice<CommentNode> {
+        allRoots.prefix(shownRootCount)
+    }
+
+    /// Whether there are top-level comments past the ones showing.
+    var hasMore: Bool {
+        shownRootCount < allRoots.count
     }
 
     /// Depth-first list of currently visible nodes. A node hidden by a collapsed
@@ -104,7 +122,7 @@ final class CommentsViewModel {
         flatten(roots)
     }
 
-    private func flatten(_ nodes: [CommentNode]) -> [CommentNode] {
+    private func flatten(_ nodes: some Sequence<CommentNode>) -> [CommentNode] {
         var out: [CommentNode] = []
         for node in nodes {
             out.append(node)
@@ -115,15 +133,28 @@ final class CommentsViewModel {
         return out
     }
 
-    func load() async {
-        guard roots.isEmpty else { return }
+    /// Fetch the thread and show its first page. When `rootID` names a
+    /// top-level comment further down, every page through the one holding it
+    /// shows too — that's where the user left off, and restoring the scroll
+    /// position needs its row.
+    func load(through rootID: Int? = nil) async {
+        guard allRoots.isEmpty, !isLoading else { return }
         await fetchThread(refresh: false)
+        shownRootCount = rootCount(through: rootID)
     }
 
     /// Pull-to-refresh: drop the existing tree and re-fetch from live data,
-    /// bypassing the cache.
+    /// bypassing the cache. As many pages as were showing stay showing, so a
+    /// pull doesn't throw away what the user had opened up.
     func refresh() async {
+        let shown = shownRootCount
         await fetchThread(refresh: true)
+        shownRootCount = min(max(shown, Self.pageSize), allRoots.count)
+    }
+
+    /// Show the next page of top-level comments.
+    func loadMore() {
+        shownRootCount = min(shownRootCount + Self.pageSize, allRoots.count)
     }
 
     private func fetchThread(refresh: Bool) async {
@@ -131,23 +162,38 @@ final class CommentsViewModel {
         errorMessage = nil
         defer { isLoading = false }
 
-        // A pull re-fetches the story first. Its `kids` is what defines the
-        // thread's roots, so refreshing only the comments we already know about
-        // would never turn up a new top-level one.
+        // A pull re-fetches the story too, so the header's score and comment
+        // count move along with the thread.
         if refresh, let fresh = try? await HNClient.shared.item(story.id, refresh: true) {
             story = fresh
         }
 
-        guard let kids = story.kids, !kids.isEmpty else {
-            roots = []
+        guard story.kids?.isEmpty == false else {
+            allRoots = []
             return
         }
         do {
-            let items = try await HNClient.shared.thread(rootIDs: kids, refresh: refresh)
-            roots = Self.nodes(for: kids, in: items, depth: 0)
+            let thread = try await HNClient.shared.commentThread(for: story, refresh: refresh)
+            allRoots = Self.nodes(for: thread.rootIDs, in: thread.items, depth: 0)
         } catch {
             errorMessage = "Couldn't load comments."
         }
+    }
+
+    /// The number of top-level comments to show so `rootID` is among them,
+    /// rounded up to whole pages. Just the first page when it's absent or no
+    /// longer in the thread.
+    private func rootCount(through rootID: Int?) -> Int {
+        let pages = rootID
+            .flatMap { id in allRoots.firstIndex { $0.id == id } }
+            .map { $0 / Self.pageSize + 1 } ?? 1
+        return min(pages * Self.pageSize, allRoots.count)
+    }
+
+    /// The top-level comment whose subtree holds `id`, or nil if it isn't
+    /// showing. A top-level comment is its own root.
+    func rootID(containing id: Int) -> Int? {
+        Self.path(to: id, in: roots)?.first?.id
     }
 
     /// Resolves a saved scroll position to a row that actually exists on screen.
@@ -161,7 +207,7 @@ final class CommentsViewModel {
     }
 
     /// The chain of nodes from a root down to `id`, inclusive.
-    private static func path(to id: Int, in nodes: [CommentNode]) -> [CommentNode]? {
+    private static func path(to id: Int, in nodes: some Sequence<CommentNode>) -> [CommentNode]? {
         for node in nodes {
             if node.id == id { return [node] }
             if let rest = path(to: id, in: node.children) { return [node] + rest }
@@ -170,16 +216,15 @@ final class CommentsViewModel {
     }
 
     /// Assemble nodes for `ids` from an already-fetched thread, recursing into
-    /// each comment's replies. Dead and deleted comments are dropped along with
-    /// their subtrees, matching how HN hides them. An ID missing from `items`
-    /// means its fetch failed, and is likewise skipped.
+    /// each comment's replies. Dead and deleted comments are dropped, as HN
+    /// drops them — unless replies survive underneath, which HN keeps in place
+    /// under a "[deleted]" stand-in. An ID missing from `items` means its fetch
+    /// failed, and is likewise skipped.
     private static func nodes(for ids: [Int], in items: [Int: HNItem], depth: Int) -> [CommentNode] {
-        ids.compactMap { items[$0] }
-            .filter { !$0.isDeadOrDeleted }
-            .map { item in
-                let node = CommentNode(item: item, depth: depth)
-                node.children = nodes(for: item.kids ?? [], in: items, depth: depth + 1)
-                return node
-            }
+        ids.compactMap { items[$0] }.compactMap { item in
+            let node = CommentNode(item: item, depth: depth)
+            node.children = nodes(for: item.kids ?? [], in: items, depth: depth + 1)
+            return item.isDeadOrDeleted && node.children.isEmpty ? nil : node
+        }
     }
 }

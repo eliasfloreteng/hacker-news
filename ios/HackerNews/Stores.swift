@@ -15,7 +15,8 @@ enum DefaultsKey {
     static let notificationsEnabled = "notificationsEnabled"
     static let pointsThreshold = "pointsThreshold"
     static let collapsed = "collapsedCommentIDs"
-    static let scrollTop = "commentScrollTopByStory"
+    static let scrollPosition = "commentScrollPositionByStory"
+    static let legacyScrollTop = "commentScrollTopByStory"
 }
 
 /// Tracks which stories the user has opened in the browser.
@@ -88,40 +89,51 @@ final class CollapsedStore {
     }
 }
 
-/// Remembers where the user was scrolled in each story's comments — stored as
-/// the ID of the comment row at the top of the viewport, keyed by story ID — so
-/// reopening a thread lands back in the same place.
+/// Remembers where the user was scrolled in each story's comments — the ID of
+/// the comment row at the top of the viewport, plus the top-level comment it
+/// sits under — keyed by story ID, so reopening a thread lands back in the same
+/// place. The root is what tells a fresh visit how many pages to load before
+/// that row exists.
 @Observable
 final class CommentScrollStore {
     static let shared = CommentScrollStore()
 
-    private var topByStory: [Int: Int]
-
-    private init() {
-        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.scrollTop) as? [String: Int] ?? [:]
-        topByStory = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in
-            Int(key).map { ($0, value) }
-        })
+    struct Position: Equatable {
+        let top: Int
+        let root: Int
     }
 
-    func top(for storyID: Int) -> Int? { topByStory[storyID] }
+    private var positionByStory: [Int: Position]
 
-    func setTop(_ commentID: Int?, for storyID: Int) {
-        if let commentID {
-            topByStory[storyID] = commentID
+    private init() {
+        // Stored as [top, root] pairs; anything else (including the pre-paging
+        // format, which kept only the top ID) is dropped.
+        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.scrollPosition) as? [String: [Int]] ?? [:]
+        positionByStory = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in
+            guard let id = Int(key), value.count == 2 else { return nil }
+            return (id, Position(top: value[0], root: value[1]))
+        })
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.legacyScrollTop)
+    }
+
+    func position(for storyID: Int) -> Position? { positionByStory[storyID] }
+
+    func setPosition(_ position: Position?, for storyID: Int) {
+        if let position {
+            positionByStory[storyID] = position
         } else {
-            topByStory.removeValue(forKey: storyID)
+            positionByStory.removeValue(forKey: storyID)
         }
         persist()
     }
 
     private func persist() {
         // Keep the persisted map from growing without bound.
-        let trimmed = topByStory.count > 500
-            ? Dictionary(uniqueKeysWithValues: topByStory.suffix(500).map { ($0.key, $0.value) })
-            : topByStory
-        let encoded = Dictionary(uniqueKeysWithValues: trimmed.map { (String($0.key), $0.value) })
-        UserDefaults.standard.set(encoded, forKey: DefaultsKey.scrollTop)
+        let trimmed = positionByStory.count > 500
+            ? Dictionary(uniqueKeysWithValues: positionByStory.suffix(500).map { ($0.key, $0.value) })
+            : positionByStory
+        let encoded = Dictionary(uniqueKeysWithValues: trimmed.map { (String($0.key), [$0.value.top, $0.value.root]) })
+        UserDefaults.standard.set(encoded, forKey: DefaultsKey.scrollPosition)
     }
 }
 

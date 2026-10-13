@@ -1,6 +1,6 @@
 # Hacker News
 
-A light, native iOS reader for [Hacker News](https://news.ycombinator.com), built with SwiftUI. It reads directly from the official [HN Firebase API](https://github.com/HackerNews/API) — there is **no backend**; everything, including notifications, runs on-device.
+A light, native iOS reader for [Hacker News](https://news.ycombinator.com), built with SwiftUI. It reads directly from the official [HN Firebase API](https://github.com/HackerNews/API), plus the site's own discussion pages for comments — there is **no backend**; everything, including notifications, runs on-device.
 
 ## Features
 
@@ -53,11 +53,12 @@ ios/HackerNews/
 ├── HackerNewsApp.swift       App entry; registers the background task
 ├── Models.swift              HNItem — decoded from the HN API
 ├── HNClient.swift            Async API client (concurrent, order-preserving fetch)
+├── CommentPageParser.swift   Reads a comment thread out of an HN discussion page
 ├── Stores.swift              VisitedStore, AppSettings, NotifiedStore (UserDefaults)
 ├── NotificationManager.swift Permission, BGAppRefreshTask, threshold rule
 ├── StoriesViewModel.swift    Page-based pagination state
 ├── StoriesView.swift         Story list, row, pagination controls
-├── CommentsViewModel.swift   Lazy comment tree (CommentNode) + collapse flattening
+├── CommentsViewModel.swift   Paged comment tree (CommentNode) + collapse flattening
 ├── CommentsView.swift        Threaded, collapsible comments
 ├── SettingsView.swift        Notification toggle, threshold, manual check
 ├── HTMLText.swift            Minimal HN-comment HTML → plain text
@@ -65,7 +66,7 @@ ios/HackerNews/
 └── Info.plist                Background modes + permitted task identifier
 ```
 
-The comment tree loads lazily: a node's replies are fetched only when it first appears, so opening a thread never fetches the whole discussion up front.
+Comments are read from the story's page on news.ycombinator.com rather than the API: the page carries the whole thread, ranked as the site ranks it, in one request — where the API needs one request per comment, a reply level at a time. The API walk remains as a fallback if the page can't be fetched or parsed. The thread shows 10 top-level comments at a time, with **Load more comments** revealing the next 10. Reopening a thread shows everything through the page you were reading, so your scroll position and collapsed comments come back as you left them.
 
 ## Tests
 

@@ -87,7 +87,45 @@ struct HNClient {
         }
     }
 
-    /// Fetch an entire comment thread, keyed by item ID.
+    /// A story's whole comment thread, the way the HN site shows it: read from
+    /// the discussion page in one request, served from the cache while fresh.
+    ///
+    /// Falls back to walking the thread through the API if the page can't be
+    /// fetched or read — the page is HTML meant for browsers, not a contract,
+    /// so a layout change must cost speed rather than the comments.
+    func commentThread(for story: HNItem, refresh: Bool = false) async throws -> CommentThread {
+        if !refresh, let cached = await ItemCache.shared.cachedThread(story.id) {
+            return cached
+        }
+        let thread: CommentThread
+        if let page = try? await commentPage(story.id) {
+            thread = page
+        } else {
+            let rootIDs = story.kids ?? []
+            thread = CommentThread(rootIDs: rootIDs, items: try await self.thread(rootIDs: rootIDs, refresh: refresh))
+        }
+        await ItemCache.shared.storeThread(thread, for: story.id)
+        return thread
+    }
+
+    /// The thread as parsed from the story's discussion page. A page with no
+    /// comment rows only counts as an empty thread when the story agrees it
+    /// has none; otherwise the page is presumed unreadable.
+    private func commentPage(_ storyID: Int) async throws -> CommentThread {
+        let (data, response) = try await session.data(from: HNItem.hnItemURL(storyID))
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let html = String(decoding: data, as: UTF8.self)
+        if let thread = CommentPageParser.parse(html) { return thread }
+        // An empty thread still renders the story's own row.
+        guard html.contains(#"id="\#(storyID)""#), !html.contains("comtr") else {
+            throw URLError(.cannotParseResponse)
+        }
+        return CommentThread(rootIDs: [], items: [:])
+    }
+
+    /// Fetch an entire comment thread through the API, keyed by item ID.
     ///
     /// Walks the tree breadth-first, fetching each depth level as one batch, so
     /// the round trips scale with the thread's depth rather than its size.

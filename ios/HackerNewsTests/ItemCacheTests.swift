@@ -49,6 +49,19 @@ struct ItemCacheTests {
         #expect(await reader.cachedTopStoryIDs() == [7, 8, 9])
     }
 
+    @Test func threadsSurviveANewInstance() async {
+        let url = temporaryCacheURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let thread = CommentThread(rootIDs: [7], items: [7: makeItem(id: 7, type: "comment")])
+
+        let writer = ItemCache(fileURL: url)
+        await writer.storeThread(thread, for: 1)
+        await writer.flush()
+
+        #expect(await ItemCache(fileURL: url).cachedThread(1) == thread)
+        #expect(await ItemCache(fileURL: url).cachedThread(2) == nil)
+    }
+
     /// Freshness follows what the entry holds, so a day-old comment is still
     /// served while a day-old score is not.
     @Test func staleEntriesAreNotServed() async {

@@ -46,6 +46,9 @@ struct CommentsView: View {
                         CommentRow(node: node)
                             .trackTopOffset(id: node.id)
                     }
+                    if model.hasMore {
+                        LoadMoreRow(model: model)
+                    }
                 }
             }
             .listStyle(.plain)
@@ -58,18 +61,22 @@ struct CommentsView: View {
             .refreshable { await model.refresh() }
             .onAppear { visited.markVisited(model.story.id) }
             .onDisappear {
-                if let topVisibleID {
-                    CommentScrollStore.shared.setTop(topVisibleID, for: model.story.id)
+                guard let topVisibleID else { return }
+                // Scrolled to the header (or anywhere without a root) means
+                // there's no position worth restoring.
+                let position = model.rootID(containing: topVisibleID).map {
+                    CommentScrollStore.Position(top: topVisibleID, root: $0)
                 }
+                CommentScrollStore.shared.setPosition(position, for: model.story.id)
             }
             .task {
-                await model.load()
+                let saved = CommentScrollStore.shared.position(for: model.story.id)
+                // Loads through the page holding the saved comment, so it has a
+                // row to scroll to even when it was several pages in.
+                await model.load(through: saved?.root)
                 // Restore the previous reading position once the rows are laid
-                // out. The whole thread is loaded by now, so any saved comment
-                // still in it has a row to scroll to.
-                guard let saved = CommentScrollStore.shared.top(for: model.story.id),
-                      saved != model.story.id,
-                      let target = model.restorationTarget(for: saved) else { return }
+                // out.
+                guard let saved, let target = model.restorationTarget(for: saved.top) else { return }
                 try? await Task.sleep(for: .milliseconds(50))
                 var tx = Transaction()
                 tx.disablesAnimations = true
@@ -118,6 +125,21 @@ struct CommentsView: View {
     }
 }
 
+/// Shows the next page of top-level comments — HN's "More" link, without
+/// leaving the page.
+private struct LoadMoreRow: View {
+    let model: CommentsViewModel
+
+    var body: some View {
+        Button("Load more comments") { model.loadMore() }
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .listRowSeparator(.hidden)
+    }
+}
+
 private struct CommentRow: View {
     let node: CommentNode
 
@@ -163,7 +185,7 @@ private struct CommentRow: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text(node.item.by ?? "anonymous")
+            Text(node.item.isDeadOrDeleted ? "[deleted]" : node.item.by ?? "anonymous")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(RelativeTime.string(from: node.item.date))

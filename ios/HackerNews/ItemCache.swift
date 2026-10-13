@@ -24,6 +24,10 @@ actor ItemCache {
     /// trusted for far less time than the comments hanging off it.
     static let storyTTL: TimeInterval = 60 * 10
 
+    /// A thread is fetched whole in one request, so going back for new replies
+    /// is cheap — it's held about as long as the story it hangs off.
+    static let threadTTL: TimeInterval = 60 * 10
+
     /// The top-story ordering churns faster than anything else; caching it is
     /// about making a relaunch instant, not about avoiding the network for long.
     static let topStoriesTTL: TimeInterval = 60 * 5
@@ -36,6 +40,10 @@ actor ItemCache {
     /// Cap on the snapshot so it stays quick to write and read back. Entries
     /// are dropped oldest-first, which is also least-likely-to-be-wanted-first.
     private static let maxPersistedEntries = 3_000
+
+    /// Threads kept, newest first. A busy one is well over a thousand comments,
+    /// so only the handful the user is likely to step back into are worth it.
+    private static let maxThreads = 10
 
     /// How long writes are coalesced. Warming a thread stores hundreds of items
     /// in a burst; there is no point writing the file for each one.
@@ -69,6 +77,30 @@ actor ItemCache {
         snapshot.entries[item.id] = Entry(item: item, storedAt: Date())
         if snapshot.entries.count > Self.sweepThreshold {
             snapshot.entries = snapshot.entries.filter(\.value.isFresh)
+        }
+        scheduleSave()
+    }
+
+    // MARK: - Threads
+
+    func cachedThread(_ storyID: Int) -> CommentThread? {
+        loadIfNeeded()
+        guard let stored = snapshot.threads[storyID] else { return nil }
+        guard stored.isFresh else {
+            snapshot.threads[storyID] = nil
+            return nil
+        }
+        return stored.thread
+    }
+
+    func storeThread(_ thread: CommentThread, for storyID: Int) {
+        loadIfNeeded()
+        snapshot.threads[storyID] = StoredThread(thread: thread, storedAt: Date())
+        if snapshot.threads.count > Self.maxThreads {
+            let newest = snapshot.threads
+                .sorted { $0.value.storedAt > $1.value.storedAt }
+                .prefix(Self.maxThreads)
+            snapshot.threads = Dictionary(uniqueKeysWithValues: newest.map { ($0.key, $0.value) })
         }
         scheduleSave()
     }
@@ -133,6 +165,7 @@ actor ItemCache {
     private func save() {
         var toPersist = snapshot
         toPersist.entries = toPersist.entries.filter(\.value.isFresh)
+        toPersist.threads = toPersist.threads.filter(\.value.isFresh)
         if toPersist.entries.count > Self.maxPersistedEntries {
             let newest = toPersist.entries
                 .sorted { $0.value.storedAt > $1.value.storedAt }
@@ -148,6 +181,27 @@ actor ItemCache {
     private struct Snapshot: Codable {
         var entries: [Int: Entry] = [:]
         var topStories: TopStories?
+        var threads: [Int: StoredThread] = [:]
+
+        init() {}
+
+        /// Snapshots written before threads were cached have no `threads`;
+        /// they still decode rather than throwing every cached item away.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            entries = try container.decode([Int: Entry].self, forKey: .entries)
+            topStories = try container.decodeIfPresent(TopStories.self, forKey: .topStories)
+            threads = try container.decodeIfPresent([Int: StoredThread].self, forKey: .threads) ?? [:]
+        }
+    }
+
+    private struct StoredThread: Codable {
+        let thread: CommentThread
+        let storedAt: Date
+
+        var isFresh: Bool {
+            Date().timeIntervalSince(storedAt) < ItemCache.threadTTL
+        }
     }
 
     private struct TopStories: Codable {
