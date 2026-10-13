@@ -19,6 +19,32 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Toggle("Hide points", isOn: $settings.hidePoints)
+                    Toggle("Hide comment counts", isOn: $settings.hideCommentCount)
+                } header: {
+                    Text("Story list")
+                } footer: {
+                    Text("Read stories on their titles alone, without the crowd's numbers next to them.")
+                }
+
+                Section {
+                    Toggle("Highlight popular stories", isOn: $settings.highlightEnabled)
+
+                    Stepper(value: $settings.highlightThreshold, in: 100...3000, step: 100) {
+                        HStack {
+                            Text("Points threshold")
+                            Spacer()
+                            Text("\(settings.highlightThreshold)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .disabled(!settings.highlightEnabled)
+                } footer: {
+                    Text("Marks stories at or above the threshold with a small orange flame, even when points are hidden.")
+                }
+
+                Section {
                     Toggle("Notify on popular stories", isOn: $settings.notificationsEnabled)
                         .onChange(of: settings.notificationsEnabled) { _, enabled in
                             if enabled { Task { await enableNotifications() } }

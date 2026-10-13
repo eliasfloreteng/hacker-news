@@ -14,6 +14,10 @@ enum DefaultsKey {
     static let notified = "notifiedStoryIDs"
     static let notificationsEnabled = "notificationsEnabled"
     static let pointsThreshold = "pointsThreshold"
+    static let hidePoints = "hidePoints"
+    static let hideCommentCount = "hideCommentCount"
+    static let highlightEnabled = "highlightEnabled"
+    static let highlightThreshold = "highlightThreshold"
     static let collapsed = "collapsedCommentIDs"
     static let scrollPosition = "commentScrollPositionByStory"
     static let legacyScrollTop = "commentScrollTopByStory"
@@ -137,7 +141,8 @@ final class CommentScrollStore {
     }
 }
 
-/// User-configurable settings for the points-threshold notifications.
+/// User-configurable settings: points-threshold notifications and how much of
+/// a story's popularity the list reveals.
 @Observable
 final class AppSettings {
     static let shared = AppSettings()
@@ -150,14 +155,45 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(pointsThreshold, forKey: DefaultsKey.pointsThreshold) }
     }
 
+    var hidePoints: Bool {
+        didSet { UserDefaults.standard.set(hidePoints, forKey: DefaultsKey.hidePoints) }
+    }
+
+    var hideCommentCount: Bool {
+        didSet { UserDefaults.standard.set(hideCommentCount, forKey: DefaultsKey.hideCommentCount) }
+    }
+
+    var highlightEnabled: Bool {
+        didSet { UserDefaults.standard.set(highlightEnabled, forKey: DefaultsKey.highlightEnabled) }
+    }
+
+    var highlightThreshold: Int {
+        didSet { UserDefaults.standard.set(highlightThreshold, forKey: DefaultsKey.highlightThreshold) }
+    }
+
+    /// Whether a story is popular enough to be marked in the list. Works off
+    /// the score even when points are hidden — that's the point: a quiet
+    /// signal for the outliers without showing every number.
+    func isHighlighted(_ story: HNItem) -> Bool {
+        highlightEnabled && (story.score ?? 0) >= highlightThreshold
+    }
+
     private init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
             DefaultsKey.notificationsEnabled: false,
             DefaultsKey.pointsThreshold: 300,
+            DefaultsKey.hidePoints: false,
+            DefaultsKey.hideCommentCount: false,
+            DefaultsKey.highlightEnabled: false,
+            DefaultsKey.highlightThreshold: 500,
         ])
         notificationsEnabled = defaults.bool(forKey: DefaultsKey.notificationsEnabled)
         pointsThreshold = defaults.integer(forKey: DefaultsKey.pointsThreshold)
+        hidePoints = defaults.bool(forKey: DefaultsKey.hidePoints)
+        hideCommentCount = defaults.bool(forKey: DefaultsKey.hideCommentCount)
+        highlightEnabled = defaults.bool(forKey: DefaultsKey.highlightEnabled)
+        highlightThreshold = defaults.integer(forKey: DefaultsKey.highlightThreshold)
     }
 }
 

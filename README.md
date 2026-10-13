@@ -10,6 +10,8 @@ A light, native iOS reader for [Hacker News](https://news.ycombinator.com), buil
 - **Threshold notifications** — get a local notification when a top story crosses a points threshold you set.
   - Never notifies about a story you've already opened.
   - Never notifies about the same story twice.
+- **Hide the numbers** — optionally hide points and/or comment counts, so stories are judged on their titles.
+- **Popular-story highlight** — stories at or above a points threshold you set get a small orange flame beside their rank, even when points are hidden.
 - **Collapsible comments** — tap a comment to collapse it. Only its *replies* hide; the comment itself stays visible.
 
 ## Requirements
@@ -60,7 +62,7 @@ ios/HackerNews/
 ├── StoriesView.swift         Story list, row, pagination controls
 ├── CommentsViewModel.swift   Paged comment tree (CommentNode) + collapse flattening
 ├── CommentsView.swift        Threaded, collapsible comments
-├── SettingsView.swift        Notification toggle, threshold, manual check
+├── SettingsView.swift        List display, highlight, notifications
 ├── HTMLText.swift            Minimal HN-comment HTML → plain text
 ├── RelativeTime.swift        "2h ago" formatting
 └── Info.plist                Background modes + permitted task identifier

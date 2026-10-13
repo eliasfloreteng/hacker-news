@@ -17,6 +17,7 @@ struct CommentsView: View {
     @State private var topVisibleID: Int?
     @Environment(\.openURL) private var openURL
     @Environment(VisitedStore.self) private var visited
+    @Environment(AppSettings.self) private var settings
 
     init(story: HNItem) {
         // Reuses the model from a previous visit when there is one, so stepping
@@ -119,8 +120,17 @@ struct CommentsView: View {
             .accessibilityIdentifier("storyTitle")
 
             HStack(spacing: 12) {
-                Label("\(model.story.score ?? 0)", systemImage: "arrow.up")
-                Label("\(model.story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
+                if settings.isHighlighted(model.story) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("Popular")
+                }
+                if !settings.hidePoints {
+                    Label("\(model.story.score ?? 0)", systemImage: "arrow.up")
+                }
+                if !settings.hideCommentCount {
+                    Label("\(model.story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
+                }
                 if let by = model.story.by { Text(by) }
                 Text(RelativeTime.string(from: model.story.date))
                 if let host = model.story.displayHost {

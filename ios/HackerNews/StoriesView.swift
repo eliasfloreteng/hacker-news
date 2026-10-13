@@ -134,15 +134,27 @@ struct StoryRow: View {
 
     @Environment(\.openURL) private var openURL
     @Environment(VisitedStore.self) private var visited
+    @Environment(AppSettings.self) private var settings
 
     private var isVisited: Bool { visited.isVisited(story.id) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text("\(rank)")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .frame(minWidth: 22, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(rank)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+
+                // A quiet marker for stories past the highlight threshold, so
+                // the outliers stand out without showing their numbers.
+                if settings.isHighlighted(story) {
+                    Image(systemName: "flame.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange.opacity(isVisited ? 0.5 : 0.9))
+                        .accessibilityLabel("Popular")
+                }
+            }
+            .frame(minWidth: 22, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 6) {
                 // Title — opens the link in the default browser. Takes the
@@ -194,8 +206,10 @@ struct StoryRow: View {
 
     private var metadata: some View {
         HStack(spacing: 14) {
-            Label("\(story.score ?? 0)", systemImage: "arrow.up")
-                .foregroundStyle(isVisited ? .tertiary : .secondary)
+            if !settings.hidePoints {
+                Label("\(story.score ?? 0)", systemImage: "arrow.up")
+                    .foregroundStyle(isVisited ? .tertiary : .secondary)
+            }
 
             if let by = story.by {
                 Label(by, systemImage: "person")
@@ -208,7 +222,13 @@ struct StoryRow: View {
 
             // Comments — opens the in-app discussion view.
             NavigationLink(value: story) {
-                Label("\(story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
+                if settings.hideCommentCount {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .imageScale(.small)
+                        .accessibilityLabel("Comments")
+                } else {
+                    Label("\(story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
+                }
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier("commentsLink")
