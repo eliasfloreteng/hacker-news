@@ -27,8 +27,13 @@ struct CommentsView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                Section {
-                    storyHeader
+                // The story's own text scrolls with the comments; only the
+                // title and stats stay pinned, since the text can be long.
+                if let text = model.story.text, !text.isEmpty {
+                    Text(HTMLText.attributed(from: text))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .tint(.orange)
                         .trackTopOffset(id: model.story.id)
                 }
 
@@ -52,6 +57,7 @@ struct CommentsView: View {
                 }
             }
             .listStyle(.plain)
+            .safeAreaBar(edge: .top) { storyHeader }
             .coordinateSpace(.named(commentsCoordinateSpace))
             .onPreferenceChange(RowTopOffsetKey.self) { offsets in
                 topVisibleID = Self.topmost(of: offsets)
@@ -95,33 +101,37 @@ struct CommentsView: View {
         return offsets.min(by: { $0.value < $1.value })?.key
     }
 
+    /// Pinned above the comments so the link and stats stay in reach while
+    /// reading.
     private var storyHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Button {
                 visited.markVisited(model.story.id)
                 openURL(model.story.destinationURL)
             } label: {
                 Text(model.story.title ?? "(untitled)")
                     .font(.headline)
+                    .lineLimit(3)
                     .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-
-            if let text = model.story.text, !text.isEmpty {
-                Text(HTMLText.attributed(from: text))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+            .accessibilityIdentifier("storyTitle")
 
             HStack(spacing: 12) {
                 Label("\(model.story.score ?? 0)", systemImage: "arrow.up")
+                Label("\(model.story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
                 if let by = model.story.by { Text(by) }
                 Text(RelativeTime.string(from: model.story.date))
+                if let host = model.story.displayHost {
+                    Text(host).lineLimit(1)
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
 

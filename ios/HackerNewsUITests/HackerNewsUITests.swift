@@ -43,5 +43,16 @@ final class HackerNewsUITests: XCTestCase {
         firstComment.tap()
         sleep(1)
         attach(app, "02-comments-collapsed")
+
+        // The story header stays pinned while the comments scroll under it.
+        let title = app.buttons["storyTitle"]
+        XCTAssertTrue(title.exists)
+        let pinnedFrame = title.frame
+        app.swipeUp()
+        app.swipeUp()
+        sleep(1)
+        attach(app, "03-comments-scrolled")
+        XCTAssertTrue(title.isHittable, "Story title should stay on screen")
+        XCTAssertEqual(title.frame, pinnedFrame, "Story title should not scroll away")
     }
 }
