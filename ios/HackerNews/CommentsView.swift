@@ -128,10 +128,10 @@ struct CommentsView: View {
                 if !settings.hidePoints {
                     Label("\(model.story.score ?? 0)", systemImage: "arrow.up")
                 }
-                if !settings.hideCommentCount {
+                if !settings.hideComments {
                     Label("\(model.story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
                 }
-                if let by = model.story.by { Text(by) }
+                if !settings.hideAuthor, let by = model.story.by { Text(by) }
                 Text(RelativeTime.string(from: model.story.date))
                 if let host = model.story.displayHost {
                     Text(host).lineLimit(1)

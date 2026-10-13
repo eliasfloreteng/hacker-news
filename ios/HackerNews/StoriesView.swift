@@ -72,7 +72,9 @@ struct StoriesView: View {
     private var storyList: some View {
         List {
             ForEach(Array(model.stories.enumerated()), id: \.element.id) { index, story in
-                StoryRow(story: story, rank: model.page * StoriesViewModel.pageSize + index + 1)
+                StoryRow(story: story, rank: model.page * StoriesViewModel.pageSize + index + 1) {
+                    path.append(story)
+                }
                     .listRowSeparator(.visible)
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     .onAppear { CommentPrefetcher.shared.prefetch(story) }
@@ -131,6 +133,7 @@ private struct TrailingIconLabelStyle: LabelStyle {
 struct StoryRow: View {
     let story: HNItem
     let rank: Int
+    let openComments: () -> Void
 
     @Environment(\.openURL) private var openURL
     @Environment(VisitedStore.self) private var visited
@@ -156,7 +159,7 @@ struct StoryRow: View {
             }
             .frame(minWidth: 22, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: settings.isCompactList ? 3 : 6) {
                 // Title — opens the link in the default browser. Takes the
                 // full row width so it wraps cleanly across lines.
                 Button {
@@ -166,28 +169,55 @@ struct StoryRow: View {
                     Text(story.title ?? "(untitled)")
                         .font(.headline)
                         .multilineTextAlignment(.leading)
-                        .foregroundStyle(isVisited ? .secondary : .primary)
+                        // Explicit colors: the borderless style would otherwise
+                        // resolve .primary to its accent tint.
+                        .foregroundStyle(isVisited ? Color.secondary : Color.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
+                // Borderless keeps the button to the title; a plain button in
+                // a List row claims taps anywhere in the row.
+                .buttonStyle(.borderless)
 
-                // Source host on its own line so it never crowds the title.
-                if let host = story.displayHost {
+                if settings.isCompactList {
+                    // Only the age is left to show, so it joins the host line.
                     HStack(spacing: 4) {
-                        Favicon(host: host)
-                        Text(host)
+                        if let host = story.displayHost {
+                            Favicon(host: host)
+                            Text(host)
+                            Text("·")
+                        }
+                        Text(RelativeTime.string(from: story.date))
                     }
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
-                }
+                    .accessibilityIdentifier("storySource")
+                } else {
+                    // Source host on its own line so it never crowds the title.
+                    if let host = story.displayHost {
+                        HStack(spacing: 4) {
+                            Favicon(host: host)
+                            Text(host)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                    }
 
-                metadata
+                    metadata
+                }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, settings.isCompactList ? 2 : 6)
+        // Without the comments button, the rest of the row opens the
+        // discussion; the title's own button still takes its taps first.
+        .contentShape(Rectangle())
+        .onTapGesture { if settings.hideComments { openComments() } }
         .contextMenu {
+            Button(action: openComments) {
+                Label("Comments", systemImage: "bubble.left.and.bubble.right")
+            }
             if isVisited {
                 Button {
                     visited.unmarkVisited(story.id)
@@ -211,7 +241,7 @@ struct StoryRow: View {
                     .foregroundStyle(isVisited ? .tertiary : .secondary)
             }
 
-            if let by = story.by {
+            if !settings.hideAuthor, let by = story.by {
                 Label(by, systemImage: "person")
                     .lineLimit(1)
             }
@@ -221,17 +251,13 @@ struct StoryRow: View {
             Spacer(minLength: 8)
 
             // Comments — opens the in-app discussion view.
-            NavigationLink(value: story) {
-                if settings.hideCommentCount {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .imageScale(.small)
-                        .accessibilityLabel("Comments")
-                } else {
+            if !settings.hideComments {
+                NavigationLink(value: story) {
                     Label("\(story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
                 }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("commentsLink")
             }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("commentsLink")
         }
         .font(.caption)
         .foregroundStyle(.secondary)

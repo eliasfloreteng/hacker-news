@@ -15,7 +15,8 @@ enum DefaultsKey {
     static let notificationsEnabled = "notificationsEnabled"
     static let pointsThreshold = "pointsThreshold"
     static let hidePoints = "hidePoints"
-    static let hideCommentCount = "hideCommentCount"
+    static let hideAuthor = "hideAuthor"
+    static let hideComments = "hideComments"
     static let highlightEnabled = "highlightEnabled"
     static let highlightThreshold = "highlightThreshold"
     static let collapsed = "collapsedCommentIDs"
@@ -159,9 +160,17 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(hidePoints, forKey: DefaultsKey.hidePoints) }
     }
 
-    var hideCommentCount: Bool {
-        didSet { UserDefaults.standard.set(hideCommentCount, forKey: DefaultsKey.hideCommentCount) }
+    var hideAuthor: Bool {
+        didSet { UserDefaults.standard.set(hideAuthor, forKey: DefaultsKey.hideAuthor) }
     }
+
+    var hideComments: Bool {
+        didSet { UserDefaults.standard.set(hideComments, forKey: DefaultsKey.hideComments) }
+    }
+
+    /// With points, author and comments all hidden only the age is left, which
+    /// fits beside the source host instead of needing a line of its own.
+    var isCompactList: Bool { hidePoints && hideAuthor && hideComments }
 
     var highlightEnabled: Bool {
         didSet { UserDefaults.standard.set(highlightEnabled, forKey: DefaultsKey.highlightEnabled) }
@@ -184,14 +193,16 @@ final class AppSettings {
             DefaultsKey.notificationsEnabled: false,
             DefaultsKey.pointsThreshold: 300,
             DefaultsKey.hidePoints: false,
-            DefaultsKey.hideCommentCount: false,
+            DefaultsKey.hideAuthor: false,
+            DefaultsKey.hideComments: false,
             DefaultsKey.highlightEnabled: false,
             DefaultsKey.highlightThreshold: 500,
         ])
         notificationsEnabled = defaults.bool(forKey: DefaultsKey.notificationsEnabled)
         pointsThreshold = defaults.integer(forKey: DefaultsKey.pointsThreshold)
         hidePoints = defaults.bool(forKey: DefaultsKey.hidePoints)
-        hideCommentCount = defaults.bool(forKey: DefaultsKey.hideCommentCount)
+        hideAuthor = defaults.bool(forKey: DefaultsKey.hideAuthor)
+        hideComments = defaults.bool(forKey: DefaultsKey.hideComments)
         highlightEnabled = defaults.bool(forKey: DefaultsKey.highlightEnabled)
         highlightThreshold = defaults.integer(forKey: DefaultsKey.highlightThreshold)
     }

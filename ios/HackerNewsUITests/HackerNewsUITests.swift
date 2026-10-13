@@ -55,4 +55,25 @@ final class HackerNewsUITests: XCTestCase {
         XCTAssertTrue(title.isHittable, "Story title should stay on screen")
         XCTAssertEqual(title.frame, pinnedFrame, "Story title should not scroll away")
     }
+
+    /// With points, author and comments hidden the rows go compact and lose
+    /// the comments button, so tapping the row itself has to open the thread.
+    @MainActor
+    func testCompactRowOpensComments() throws {
+        let app = XCUIApplication()
+        // Launch arguments land in UserDefaults' argument domain, overriding
+        // the stored settings for this run only.
+        app.launchArguments += ["-hidePoints", "YES", "-hideAuthor", "YES", "-hideComments", "YES"]
+        app.launch()
+
+        let source = app.staticTexts["storySource"].firstMatch
+        XCTAssertTrue(source.waitForExistence(timeout: 25), "Top stories should load")
+        XCTAssertFalse(app.buttons["commentsLink"].exists, "Comments button should be hidden")
+        attach(app, "04-compact-list")
+
+        // Below the title, which opens the article instead.
+        source.tap()
+        XCTAssertTrue(app.navigationBars["Comments"].waitForExistence(timeout: 10),
+                      "Tapping the row should open comments")
+    }
 }
