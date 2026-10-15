@@ -56,8 +56,8 @@ final class HackerNewsUITests: XCTestCase {
         XCTAssertEqual(title.frame, pinnedFrame, "Story title should not scroll away")
     }
 
-    /// With points, author and comments hidden the rows go compact and lose
-    /// the comments button, so tapping the row itself has to open the thread.
+    /// With points, author and comments hidden the rows go compact, but the
+    /// full-height comments button stays and still opens the thread.
     @MainActor
     func testCompactRowOpensComments() throws {
         let app = XCUIApplication()
@@ -68,12 +68,12 @@ final class HackerNewsUITests: XCTestCase {
 
         let source = app.staticTexts["storySource"].firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 25), "Top stories should load")
-        XCTAssertFalse(app.buttons["commentsLink"].exists, "Comments button should be hidden")
+        let comments = app.buttons["commentsLink"].firstMatch
+        XCTAssertTrue(comments.exists, "Comments button should stay in compact rows")
         attach(app, "04-compact-list")
 
-        // Below the title, which opens the article instead.
-        source.tap()
+        comments.tap()
         XCTAssertTrue(app.navigationBars["Comments"].waitForExistence(timeout: 10),
-                      "Tapping the row should open comments")
+                      "The comments button should open comments")
     }
 }

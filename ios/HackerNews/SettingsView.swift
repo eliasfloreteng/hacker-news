@@ -21,11 +21,11 @@ struct SettingsView: View {
                 Section {
                     Toggle("Hide points", isOn: $settings.hidePoints)
                     Toggle("Hide author", isOn: $settings.hideAuthor)
-                    Toggle("Hide comments", isOn: $settings.hideComments)
+                    Toggle("Hide comment counts", isOn: $settings.hideComments)
                 } header: {
                     Text("Story list")
                 } footer: {
-                    Text("Read stories on their titles alone, without the crowd's numbers next to them. With comments hidden, tap a story outside its title to open the discussion. Hiding all three fits more stories on screen.")
+                    Text("Read stories on their titles alone, without the crowd's numbers next to them. The comments button stays at the right of each story. Hiding all three fits more stories on screen.")
                 }
 
                 Section {

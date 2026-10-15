@@ -75,6 +75,9 @@ struct StoriesView: View {
                 StoryRow(story: story, rank: model.page * StoriesViewModel.pageSize + index + 1) {
                     path.append(story)
                 }
+                    // The comments button runs to the row's edges, so the row
+                    // pads its own content instead of taking the default insets.
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 0))
                     .listRowSeparator(.visible)
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     .onAppear { CommentPrefetcher.shared.prefetch(story) }
@@ -142,6 +145,35 @@ struct StoryRow: View {
     private var isVisited: Bool { visited.isVisited(story.id) }
 
     var body: some View {
+        HStack(spacing: 0) {
+            content
+                .padding(.vertical, settings.isCompactList ? 8 : 12)
+
+            commentsButton
+        }
+        // Lets the comments button fill the height the content settles on.
+        .fixedSize(horizontal: false, vertical: true)
+        .contextMenu {
+            Button(action: openComments) {
+                Label("Comments", systemImage: "bubble.left.and.bubble.right")
+            }
+            if isVisited {
+                Button {
+                    visited.unmarkVisited(story.id)
+                } label: {
+                    Label("Mark as Not Read", systemImage: "circle")
+                }
+            } else {
+                Button {
+                    visited.markVisited(story.id)
+                } label: {
+                    Label("Mark as Read", systemImage: "checkmark.circle")
+                }
+            }
+        }
+    }
+
+    private var content: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("\(rank)")
@@ -209,29 +241,37 @@ struct StoryRow: View {
                 }
             }
         }
-        .padding(.vertical, settings.isCompactList ? 2 : 6)
-        // Without the comments button, the rest of the row opens the
-        // discussion; the title's own button still takes its taps first.
-        .contentShape(Rectangle())
-        .onTapGesture { if settings.hideComments { openComments() } }
-        .contextMenu {
-            Button(action: openComments) {
-                Label("Comments", systemImage: "bubble.left.and.bubble.right")
-            }
-            if isVisited {
-                Button {
-                    visited.unmarkVisited(story.id)
-                } label: {
-                    Label("Mark as Not Read", systemImage: "circle")
-                }
-            } else {
-                Button {
-                    visited.markVisited(story.id)
-                } label: {
-                    Label("Mark as Read", systemImage: "checkmark.circle")
+    }
+
+    /// Opens the in-app discussion. Always shown and as tall as the row, so
+    /// it's an easy target; the count goes when comments are hidden.
+    private var commentsButton: some View {
+        Button(action: openComments) {
+            VStack(spacing: 3) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .imageScale(.small)
+                if !settings.hideComments {
+                    Text("\(story.descendants ?? 0)")
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
+            .font(.caption)
+            .frame(width: 52)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
+        // Borderless keeps taps on the button from selecting the whole row.
+        .buttonStyle(.borderless)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(.separator)
+                .frame(width: 1 / 3)
+                .padding(.vertical, 10)
+        }
+        .accessibilityLabel(settings.hideComments ? "Comments" : "\(story.descendants ?? 0) comments")
+        .accessibilityIdentifier("commentsLink")
     }
 
     private var metadata: some View {
@@ -247,17 +287,6 @@ struct StoryRow: View {
             }
 
             Text(RelativeTime.string(from: story.date))
-
-            Spacer(minLength: 8)
-
-            // Comments — opens the in-app discussion view.
-            if !settings.hideComments {
-                NavigationLink(value: story) {
-                    Label("\(story.descendants ?? 0)", systemImage: "bubble.left.and.bubble.right")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier("commentsLink")
-            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
